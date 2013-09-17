@@ -1,0 +1,18 @@
+task main()
+{
+  byte rt = MotorRegulationTime();
+  SetMotorRegulationTime(MS_5);
+  byte ro = MotorRegulationOptions();
+  SetMotorRegulationOptions(OUT_REGOPTION_NO_SATURATION);
+  PosRegSetMax(OUT_A, 100, 15);
+  byte ms = MotorMaxSpeed(OUT_A);
+  byte ma = MotorMaxAcceleration(OUT_A);
+  PosRegEnable(OUT_A);
+  while(true)
+  {
+  PosRegSetAngle(OUT_A, MotorTachoCount(OUT_B));
+  //Wait(5000);
+  //PosRegAddAngle(OUT_A, 360);
+  //Wait(5000);
+  }
+}

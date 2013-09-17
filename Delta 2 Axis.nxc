@@ -1,0 +1,120 @@
+/*
+Changelog
+release 001
+
+20130917
+  + (20:00) Added HMI definition
+
+Task configuration:
+- HMI
+- INPUT
+- CONTROL
+
+Activity
+myActivity = 1 - horizontal motion
+           = 2 - vertical motion
+           = 3 - A1 homing
+           = 4 - A2 homing
+           
+HMI display
+________________________
+LINE1: Ctl:000000
+LINE2: A1 :000000,000
+LINE3: A2 :000000,000
+LINE4: Activity
+LINE5: Height:00000
+LINE6: Length:00000
+LINE7: X:0000
+LINE8: Y:0000
+
+*/
+
+#define ACTIVITY_HORIZONTAL 1
+#define ACTIVITY_VERTICAL 2
+#define ACTIVITY_A1_HOMING 3
+#define ACTIVITY_A2_HOMING 4
+
+#define CONTROL_AXIS 0
+#define MOTOR_A1 1
+#define MOTOR_A2 2
+
+int myActivity;
+int myTachoCounts[3];
+int myActualMotorSpeed[3];
+
+long myLength,myHeight,myX,myY;
+
+string fnc_MakeActivityName(int vActivity)
+{
+  switch(vActivity)
+      {case ACTIVITY_HORIZONTAL :return "Horizontal";break;
+       case ACTIVITY_VERTICAL   :return "Vertical";break;
+       case ACTIVITY_A1_HOMING  :return "A1 homing";break;
+       case ACTIVITY_A2_HOMING  :return "A2 homing";break;
+       default:return "Undefined";break;
+      }
+}
+
+task INPUT()  {
+  int i;
+  string s;
+  while(true) {
+    myTachoCounts[CONTROL_AXIS]=MotorTachoCount(OUT_A);
+    myTachoCounts[MOTOR_A1]=MotorTachoCount(OUT_B);
+    myTachoCounts[MOTOR_A2]=MotorTachoCount(OUT_C);
+    myActualMotorSpeed[CONTROL_AXIS]=MotorActualSpeed(OUT_A);
+    myActualMotorSpeed[MOTOR_A1]=MotorActualSpeed(OUT_B);
+    myActualMotorSpeed[MOTOR_A2]=MotorActualSpeed(OUT_C);
+    }
+}
+
+task HMI()
+{ string s;
+  while(true) {
+    Wait(MS_500);
+    ClearScreen();
+    s="Ctl:";
+    s=strcat(s,FormatNum("%05d", myTachoCounts[CONTROL_AXIS]));
+    TextOut(0, LCD_LINE1,s);
+
+    s="A1 :";
+    s=strcat(s,FormatNum("%05d,", myTachoCounts[MOTOR_A1]));
+    s=strcat(s,FormatNum("%03d", myActualMotorSpeed[MOTOR_A1]));
+    TextOut(0, LCD_LINE2,s);
+
+    s="A2 :";
+    s=strcat(s,FormatNum("%05d,", myTachoCounts[MOTOR_A2]));
+    s=strcat(s,FormatNum("%03d", myActualMotorSpeed[MOTOR_A2]));
+    TextOut(0, LCD_LINE3,s);
+
+    s=fnc_MakeActivityName(myActivity);
+    TextOut(0, LCD_LINE4,s);
+
+    s="Height:";
+    s=strcat(s,FormatNum("%05d", myHeight));
+    TextOut(0, LCD_LINE5,s);
+    
+    s="Length:";
+    s=strcat(s,FormatNum("%05d", myLength));
+    TextOut(0, LCD_LINE6,s);
+    
+    s="X:";
+    s=strcat(s,FormatNum("%05d", myX));
+    TextOut(0, LCD_LINE7,s);
+
+    s="Y:";
+    s=strcat(s,FormatNum("%05d", myY));
+    TextOut(0, LCD_LINE8,s);
+              }
+}
+void init() {
+  CoastEx(OUT_A, RESET_NONE);
+  myActivity=ACTIVITY_HORIZONTAL;
+}
+
+task main() {
+  //Initialisation
+  init();
+  //Task configuration
+  Precedes(INPUT,HMI);
+}
