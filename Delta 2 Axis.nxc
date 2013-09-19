@@ -1,6 +1,9 @@
 /*
 Changelog
-release 001
+release 002
+
+20130919
+  + (15:59) Homing procedures with touch sensor, start position regulation procedure, limits
 
 20130917
   + (20:00) Added HMI definition
@@ -29,20 +32,57 @@ LINE8: Y:0000
 
 */
 
+#define A_P 45
+#define A_I 45
+#define A_D 45
+
+
+
+#define TRAVEL_AFTER_HOME 2000
+#define APROACH_HOME_SPEED 50
+#define SPEED_AFTER_HOME 50
+
 #define ACTIVITY_HORIZONTAL 1
 #define ACTIVITY_VERTICAL 2
 #define ACTIVITY_A1_HOMING 3
 #define ACTIVITY_A2_HOMING 4
+#define ACTIVITY_MAX 5
 
 #define CONTROL_AXIS 0
 #define MOTOR_A1 1
 #define MOTOR_A2 2
 
+#define BOTTOM_LIMIT -1300
+#define TOP_LIMIT 1500
+
 int myActivity;
 int myTachoCounts[3];
+int myLastTachoCounts[3];
 int myActualMotorSpeed[3];
 
 long myLength,myHeight,myX,myY;
+
+bool myHomingActive[3],myHomingTracking[3];
+
+bool myTouchInput,myLeftButton,myRightButton,myCenterButton;
+bool myMotionActive;
+
+void StartRegulatedPositioner() {
+  SetMotorRegulationTime(MS_5);
+  SetMotorRegulationOptions(OUT_REGOPTION_NO_SATURATION);
+  PosRegSetMax(OUT_BC, 100, 35);
+  PosRegEnable(OUT_BC,A_P,A_I,A_D);
+  ResetAllTachoCounts(OUT_A);
+  myLastTachoCounts[CONTROL_AXIS]=0;
+  myMotionActive=true;
+  myX=0;
+}
+
+void StopRegulatedPositioner() {
+CoastEx(OUT_A, RESET_NONE);
+
+
+}
 
 string fnc_MakeActivityName(int vActivity)
 {
@@ -55,8 +95,19 @@ string fnc_MakeActivityName(int vActivity)
       }
 }
 
+void fnc_Activity_Inbound(int vActivity)
+{
+  switch(vActivity)
+      {case ACTIVITY_HORIZONTAL :StartRegulatedPositioner();break;
+       case ACTIVITY_VERTICAL   :StartRegulatedPositioner();break;
+       case ACTIVITY_A1_HOMING  :StopRegulatedPositioner();break;
+       case ACTIVITY_A2_HOMING  :StopRegulatedPositioner();break;
+       default:;break;
+      }
+}
+
 task INPUT()  {
-  int i;
+  int i,myTravelControl;
   string s;
   while(true) {
     myTachoCounts[CONTROL_AXIS]=MotorTachoCount(OUT_A);
@@ -65,7 +116,99 @@ task INPUT()  {
     myActualMotorSpeed[CONTROL_AXIS]=MotorActualSpeed(OUT_A);
     myActualMotorSpeed[MOTOR_A1]=MotorActualSpeed(OUT_B);
     myActualMotorSpeed[MOTOR_A2]=MotorActualSpeed(OUT_C);
+    myTouchInput=(Sensor(IN_1)==1);
+    myRightButton=ButtonPressed(BTNRIGHT, false);
+    myLeftButton=ButtonPressed(BTNLEFT, false);
+    myCenterButton=ButtonPressed(BTNCENTER, false);
+    if (myMotionActive)
+    {
+      myTravelControl=myTachoCounts[CONTROL_AXIS]-myLastTachoCounts[CONTROL_AXIS];
     }
+    else
+    {
+      myTravelControl=0;
+    }
+    if (myX+myTravelControl<BOTTOM_LIMIT) myX=BOTTOM_LIMIT;
+    if (myX+myTravelControl>TOP_LIMIT) myX=TOP_LIMIT;
+    if (myX+myTravelControl>=BOTTOM_LIMIT && myX+myTravelControl<=TOP_LIMIT) myX=myX+myTravelControl;
+
+    myLastTachoCounts[CONTROL_AXIS]=myTachoCounts[CONTROL_AXIS];
+    
+    }
+}
+
+task A1()  {
+  int me=MOTOR_A1;
+  while(true) {
+  if(myHomingActive[me]) {
+    OnFwd(OUT_B, APROACH_HOME_SPEED);
+    myHomingActive[me]=false;
+    myHomingTracking[me]=true;
+    }
+  if (myHomingTracking[me] && myTouchInput)
+    {
+      ResetAllTachoCounts(OUT_B);
+      RotateMotorPID(OUT_B, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);
+      myHomingTracking[me]=false;
+    }
+  if (myMotionActive)
+    {
+      PosRegSetAngle(OUT_B, myX);
+    }
+    }
+}
+
+task A2()  {
+  int me=MOTOR_A2;
+  while(true) {
+  if(myHomingActive[me]) {
+    OnFwd(OUT_C, APROACH_HOME_SPEED);
+    myHomingActive[me]=false;
+    myHomingTracking[me]=true;
+    }
+  if (myHomingTracking[me] && myTouchInput)
+    {
+      ResetAllTachoCounts(OUT_C);
+      RotateMotorPID(OUT_C, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);
+      myHomingTracking[me]=false;
+    }
+  if (myMotionActive)
+    {
+      PosRegSetAngle(OUT_C, myX);
+    }
+    }
+}
+
+task ACTIVITY() {
+  bool myLastLeftButton,myLastRightButton,myLastCenterButton;
+  while(true) {
+  if (myLeftButton && !myLastLeftButton)
+  {
+    myLastLeftButton=true;
+    myMotionActive=false;
+    myActivity=myActivity-1;
+    if (myActivity==0) myActivity=ACTIVITY_A2_HOMING;
+    fnc_Activity_Inbound(myActivity);
+  }
+  if (!myLeftButton) myLastLeftButton=false;
+  if (myRightButton && !myLastRightButton)
+  {
+    myLastRightButton=true;
+    myMotionActive=false;
+    myActivity=myActivity+1;
+    if (myActivity==ACTIVITY_MAX) myActivity=ACTIVITY_HORIZONTAL;
+    fnc_Activity_Inbound(myActivity);
+  }
+  if (!myRightButton) myLastRightButton=false;
+  if (myCenterButton && !myLastCenterButton)
+  {
+    myLastCenterButton=true;
+    myMotionActive=false;
+    if (myActivity==ACTIVITY_A1_HOMING) myHomingActive[MOTOR_A1]=true;
+    if (myActivity==ACTIVITY_A2_HOMING) myHomingActive[MOTOR_A2]=true;
+  }
+  if (!myCenterButton) myLastCenterButton=false;
+  }
 }
 
 task HMI()
@@ -107,14 +250,21 @@ task HMI()
     TextOut(0, LCD_LINE8,s);
               }
 }
+
+
+
 void init() {
   CoastEx(OUT_A, RESET_NONE);
   myActivity=ACTIVITY_HORIZONTAL;
+  SetSensorTouch(IN_1);
+  StartRegulatedPositioner();
+  myMotionActive=true;
 }
-
 task main() {
   //Initialisation
   init();
   //Task configuration
-  Precedes(INPUT,HMI);
+  Precedes(INPUT,A1,A2,ACTIVITY,HMI);
+  //Wait(SEC_5);
+  //myHomingActive[MOTOR_A1]=true;
 }
