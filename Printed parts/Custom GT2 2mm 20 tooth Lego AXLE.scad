@@ -19,8 +19,9 @@
 use <MCAD/regular_shapes.scad>
 
 //-------------------- Lego Axle ----------------------
-axle_spline_width=2.0 - 0.2;
-axle_diameter=4.8 - 0.1;
+//Adapted for female type connector
+axle_spline_width=2.0 + 0.1;
+axle_diameter=4.8 + 0.2;
 axle_inner_keyhole_radius=0.3; //keyhole the corners to try and make them square when printed
 
 module axle(height) {
