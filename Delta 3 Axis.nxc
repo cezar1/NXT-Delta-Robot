@@ -1,6 +1,9 @@
 /*
 Changelog
-release 003
+release 004
+
+20131026
+  + (19:38) Overhaul, release for 3 axis tower, basic functionality
 
 20130920
   + (17:00) Automatic homing at startup, basic implementation of motion kinematics
@@ -186,14 +189,16 @@ task A1()  {
   long qSP;
   while(true) {
   if(myHomingActive[me]) {
-    OnFwd(OUT_A, APROACH_HOME_SPEED);
+    if (INVERT_Y_DIR) {OnFwd(OUT_A, APROACH_HOME_SPEED);}
+    else {OnFwd(OUT_A, -APROACH_HOME_SPEED);}
     myHomingActive[me]=false;
     myHomingTracking[me]=true;
     }
   if (myHomingTracking[me] && myTouchInput[me])
     {
       ResetAllTachoCounts(OUT_A);
-      RotateMotorPID(OUT_A, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);
+      if (INVERT_Y_DIR) {RotateMotorPID(OUT_A, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      else {RotateMotorPID(OUT_A, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
       myHomingTracking[me]=false;
       myReadyForOperation[me]=true;
       //if(myStartup) {StartRegulatedPositioner();PlayFileEx("Good.rso", 3, false);Wait(MS_500);myStartup=false;}
