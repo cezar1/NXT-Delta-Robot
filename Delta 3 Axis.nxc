@@ -1,6 +1,9 @@
 /*
 Changelog
-release 004
+release 005
+
+20131028
+  + (15:24) Update
 
 20131026
   + (19:38) Overhaul, release for 3 axis tower, basic functionality
@@ -45,7 +48,7 @@ LINE7: Activity
 
 
 
-#define TRAVEL_AFTER_HOME 2000
+#define TRAVEL_AFTER_HOME 1000
 #define APROACH_HOME_SPEED 50
 #define SPEED_AFTER_HOME 50
 #define INVERT_Y_DIR 0
@@ -146,6 +149,7 @@ task INPUT()  {
     myActualMotorSpeed[MOTOR_A2]=MotorActualSpeed(OUT_B);
     myActualMotorSpeed[MOTOR_A3]=MotorActualSpeed(OUT_C);
     myTouchInput[MOTOR_A1]=(Sensor(IN_1)==1);
+    myDbgLong=myTouchInput[MOTOR_A1];
     myTouchInput[MOTOR_A2]=(Sensor(IN_2)==1);
     myTouchInput[MOTOR_A3]=(Sensor(IN_3)==1);
     myRightButton=ButtonPressed(BTNRIGHT, false);
@@ -186,19 +190,20 @@ task INPUT()  {
 
 task A1()  {
   int me=MOTOR_A1;
+  int myPort=OUT_A;
   long qSP;
   while(true) {
-  if(myHomingActive[me]) {
-    if (INVERT_Y_DIR) {OnFwd(OUT_A, APROACH_HOME_SPEED);}
-    else {OnFwd(OUT_A, -APROACH_HOME_SPEED);}
+  if(!myReadyForOperation[me] && myStartup) {
+    if (INVERT_Y_DIR) {OnFwd(myPort, APROACH_HOME_SPEED);}
+    else {OnFwd(myPort, -APROACH_HOME_SPEED);}
     myHomingActive[me]=false;
     myHomingTracking[me]=true;
     }
   if (myHomingTracking[me] && myTouchInput[me])
     {
-      ResetAllTachoCounts(OUT_A);
-      if (INVERT_Y_DIR) {RotateMotorPID(OUT_A, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
-      else {RotateMotorPID(OUT_A, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      ResetAllTachoCounts(myPort);
+      if (INVERT_Y_DIR) {RotateMotorPID(myPort, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      else {RotateMotorPID(myPort, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
       myHomingTracking[me]=false;
       myReadyForOperation[me]=true;
       //if(myStartup) {StartRegulatedPositioner();PlayFileEx("Good.rso", 3, false);Wait(MS_500);myStartup=false;}
@@ -208,11 +213,40 @@ task A1()  {
       if (myAxisSP[me]>TOP_LIMIT) qSP=TOP_LIMIT;
       if (myAxisSP[me]<BOTTOM_LIMIT) qSP=BOTTOM_LIMIT;
       if (myAxisSP[me]<TOP_LIMIT && myAxisSP[me]>BOTTOM_LIMIT) qSP=myAxisSP[me];
-      PosRegSetAngle(OUT_A, qSP);
+      PosRegSetAngle(myPort, qSP);
     }
     }
 }
 
+task A2()  {
+  int me=MOTOR_A2;
+  int myPort=OUT_B;
+  long qSP;
+  while(true) {
+  if(!myReadyForOperation[me] && myStartup) {
+    if (INVERT_Y_DIR) {OnFwd(myPort, APROACH_HOME_SPEED);}
+    else {OnFwd(myPort, -APROACH_HOME_SPEED);}
+    myHomingActive[me]=false;
+    myHomingTracking[me]=true;
+    }
+  if (myHomingTracking[me] && myTouchInput[me])
+    {
+      ResetAllTachoCounts(myPort);
+      if (INVERT_Y_DIR) {RotateMotorPID(myPort, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      else {RotateMotorPID(myPort, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      myHomingTracking[me]=false;
+      myReadyForOperation[me]=true;
+      //if(myStartup) {StartRegulatedPositioner();PlayFileEx("Good.rso", 3, false);Wait(MS_500);myStartup=false;}
+    }
+  if (myMotionActive)
+    {
+      if (myAxisSP[me]>TOP_LIMIT) qSP=TOP_LIMIT;
+      if (myAxisSP[me]<BOTTOM_LIMIT) qSP=BOTTOM_LIMIT;
+      if (myAxisSP[me]<TOP_LIMIT && myAxisSP[me]>BOTTOM_LIMIT) qSP=myAxisSP[me];
+      PosRegSetAngle(myPort, qSP);
+    }
+    }
+}
 
 
 task ACTIVITY() {
@@ -274,14 +308,16 @@ LINE7: Activity
     s="A2:";s=strcat(s,FormatNum("%05d", myTachoCounts[MOTOR_A2]));TextOut(0, LCD_LINE5,s);
     s="A3:";s=strcat(s,FormatNum("%05d", myTachoCounts[MOTOR_A3]));TextOut(0, LCD_LINE6,s);
 
-    s=fnc_MakeActivityName(myActivity);s=strcat(s,FormatNum(",%05d",myDbgLong ));TextOut(0, LCD_LINE7,s);
+    s=fnc_MakeActivityName(myActivity);TextOut(0, LCD_LINE7,s);
+    
+    s="Debug1:";s=strcat(s,FormatNum("%05d",myDbgLong ));TextOut(0, LCD_LINE8,s);
     }
 }
 
 
 
 void init() {
-  CoastEx(OUT_A, RESET_NONE);
+
   myActivity=ACTIVITY_HOMING;
   SetSensorTouch(IN_1);
   SetSensorTouch(IN_2);
@@ -294,5 +330,5 @@ task main() {
   //Initialisation
   init();
   //Task configuration
-  Precedes(INPUT,A1,ACTIVITY,HMI);
+  Precedes(INPUT,A1,A2,ACTIVITY,HMI);
 }
