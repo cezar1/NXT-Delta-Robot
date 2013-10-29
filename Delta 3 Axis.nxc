@@ -1,6 +1,11 @@
 /*
 Changelog
-release 005
+release 006
+
+20131029
+        +  (15:39)  Modified homing procedure
+        +  (15:39)  Added simple routine noise motion, phased between three motors
+        +  (15:39)  Added synchronised travel after homing
 
 20131028
   + (15:24) Update
@@ -73,11 +78,16 @@ LINE7: Activity
 
 #define RESOLUTION_MOTION_SINGLE 10
 
+#define NOISE_MODULO 500
+#define NOISE_STEP   2
+
 int myActivity;
 long myTachoCounts[3];
 long myLastTachoCounts[3];
 int myActualMotorSpeed[3];
 long myAxisSP[3];
+
+long myNoiseSignal;
 
 long myX,myY,myZ;
 long myDbgLong;
@@ -90,7 +100,7 @@ bool myMotionActive,myStartup,mySetpointChangeOverActive;
 void StartRegulatedPositioner() {
   SetMotorRegulationTime(MS_5);
   SetMotorRegulationOptions(OUT_REGOPTION_NO_SATURATION);
-  PosRegSetMax(OUT_ABC, 100, 35);
+  PosRegSetMax(OUT_ABC, 60, 50);
   PosRegEnable(OUT_ABC,A_P,A_I,A_D);
   ResetAllTachoCounts(OUT_ABC);
   myMotionActive=true;
@@ -102,17 +112,17 @@ void StopRegulatedPositioner() {
 
 long MakeA1()
 {
-  return 0;
+  return myNoiseSignal % NOISE_MODULO;
 }
 
 long MakeA2()
 {
-  return 0;
+  return (myNoiseSignal + NOISE_MODULO/3) % NOISE_MODULO;
 }
 
 long MakeA3()
 {
-  return 0;
+  return (myNoiseSignal + 2*NOISE_MODULO/3) % NOISE_MODULO;
 }
 
 string fnc_MakeActivityName(int vActivity)
@@ -142,6 +152,7 @@ task INPUT()  {
   bool myLastButton[3];
   string s;
   while(true) {
+    myNoiseSignal=(myNoiseSignal + NOISE_STEP) % NOISE_MODULO;
     myTachoCounts[MOTOR_A1]=MotorTachoCount(OUT_A);
     myTachoCounts[MOTOR_A2]=MotorTachoCount(OUT_B);
     myTachoCounts[MOTOR_A3]=MotorTachoCount(OUT_C);
@@ -201,9 +212,10 @@ task A1()  {
     }
   if (myHomingTracking[me] && myTouchInput[me])
     {
-      ResetAllTachoCounts(myPort);
-      if (INVERT_Y_DIR) {RotateMotorPID(myPort, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
-      else {RotateMotorPID(myPort, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      ResetTachoCount(myPort);
+      Off(myPort);Wait(MS_500);
+      //if (INVERT_Y_DIR) {RotateMotorPID(myPort, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      //else {RotateMotorPID(myPort, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
       myHomingTracking[me]=false;
       myReadyForOperation[me]=true;
       //if(myStartup) {StartRegulatedPositioner();PlayFileEx("Good.rso", 3, false);Wait(MS_500);myStartup=false;}
@@ -231,9 +243,10 @@ task A2()  {
     }
   if (myHomingTracking[me] && myTouchInput[me])
     {
-      ResetAllTachoCounts(myPort);
-      if (INVERT_Y_DIR) {RotateMotorPID(myPort, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
-      else {RotateMotorPID(myPort, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      ResetTachoCount(myPort);
+      Off(myPort);Wait(MS_500);
+      //if (INVERT_Y_DIR) {RotateMotorPID(myPort, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      //else {RotateMotorPID(myPort, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
       myHomingTracking[me]=false;
       myReadyForOperation[me]=true;
       //if(myStartup) {StartRegulatedPositioner();PlayFileEx("Good.rso", 3, false);Wait(MS_500);myStartup=false;}
@@ -248,10 +261,47 @@ task A2()  {
     }
 }
 
+task A3()  {
+  int me=MOTOR_A3;
+  int myPort=OUT_C;
+  long qSP;
+  while(true) {
+  if(!myReadyForOperation[me] && myStartup) {
+    if (INVERT_Y_DIR) {OnFwd(myPort, APROACH_HOME_SPEED);}
+    else {OnFwd(myPort, -APROACH_HOME_SPEED);}
+    myHomingActive[me]=false;
+    myHomingTracking[me]=true;
+    }
+  if (myHomingTracking[me] && myTouchInput[me])
+    {
+      ResetTachoCount(myPort);
+      Off(myPort);Wait(MS_500);
+      //if (INVERT_Y_DIR) {RotateMotorPID(myPort, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      //else {RotateMotorPID(myPort, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+      myHomingTracking[me]=false;
+      myReadyForOperation[me]=true;
+      //if(myStartup) {StartRegulatedPositioner();PlayFileEx("Good.rso", 3, false);Wait(MS_500);myStartup=false;}
+    }
+  if (myMotionActive)
+    {
+      if (myAxisSP[me]>TOP_LIMIT) qSP=TOP_LIMIT;
+      if (myAxisSP[me]<BOTTOM_LIMIT) qSP=BOTTOM_LIMIT;
+      if (myAxisSP[me]<TOP_LIMIT && myAxisSP[me]>BOTTOM_LIMIT) qSP=myAxisSP[me];
+      PosRegSetAngle(myPort, qSP);
+    }
+    }
+}
 
 task ACTIVITY() {
   bool myLastLeftButton,myLastRightButton,myLastCenterButton;
   while(true) {
+  if (myReadyForOperation[MOTOR_A1] && myReadyForOperation[MOTOR_A2] && myReadyForOperation[MOTOR_A3] && myStartup)
+  {
+    myStartup=false;
+    if (INVERT_Y_DIR) {RotateMotorPID(OUT_ABC, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+    else {RotateMotorPID(OUT_ABC, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
+    StartRegulatedPositioner();PlayFileEx("Good.rso", 3, false);Wait(MS_500);
+  }
   if (myLeftButton && !myLastLeftButton && !myStartup)
   {
     myLastLeftButton=true;
@@ -330,5 +380,5 @@ task main() {
   //Initialisation
   init();
   //Task configuration
-  Precedes(INPUT,A1,A2,ACTIVITY,HMI);
+  Precedes(INPUT,A1,A2,A3,ACTIVITY,HMI);
 }
