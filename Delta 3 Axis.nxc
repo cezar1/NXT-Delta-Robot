@@ -1,6 +1,9 @@
 /*
 Changelog
-release 006
+release 008
+
+20131031
+        +  (16:20)  Added circle activity
 
 20131029
         +  (15:39)  Modified homing procedure
@@ -51,8 +54,6 @@ LINE7: Activity
 #define A_I 45
 #define A_D 45
 
-
-
 #define TRAVEL_AFTER_HOME 1000
 #define APROACH_HOME_SPEED 50
 #define SPEED_AFTER_HOME 50
@@ -62,7 +63,15 @@ LINE7: Activity
 #define ACTIVITY_Y 2
 #define ACTIVITY_Z 3
 #define ACTIVITY_HOMING 4
-#define ACTIVITY_MAX 5
+#define ACTIVITY_CIRCLE 5
+#define ACTIVITY_MAX 6
+
+#define CIRCLE_ACTIVITY_L          1
+#define CIRCLE_ACTIVITY_R          2
+#define CIRCLE_ACTIVITY_Radius     3
+#define CIRCLE_ACTIVITY_Deg_Inc    4
+#define CIRCLE_ACTIVITY_Exit       5
+#define CIRCLE_ACTIVITY_Max        6
 
 #define MOTOR_A1 0
 #define MOTOR_A2 1
@@ -81,6 +90,10 @@ LINE7: Activity
 #define NOISE_MODULO 500
 #define NOISE_STEP   2
 
+#define LEFT_BUTTON 0
+#define RIGHT_BUTTON 1
+#define CENTER_BUTTON 2
+
 int myActivity;
 long myTachoCounts[3];
 long myLastTachoCounts[3];
@@ -95,7 +108,7 @@ long myDbgLong;
 bool myHomingActive[3],myHomingTracking[3];
 
 bool myTouchInput[3],myReadyForOperation[3],myLeftButton,myRightButton,myCenterButton;
-bool myMotionActive,myStartup,mySetpointChangeOverActive;
+bool myMotionActive,myStartup,myActivityOn;
 
 void StartRegulatedPositioner() {
   SetMotorRegulationTime(MS_5);
@@ -110,17 +123,17 @@ void StopRegulatedPositioner() {
   CoastEx(OUT_ABC, RESET_NONE);
 }
 
-long MakeA1()
+long MakeA1(long x,long y,long z)
 {
   return myNoiseSignal % NOISE_MODULO;
 }
 
-long MakeA2()
+long MakeA2(long x,long y,long z)
 {
   return (myNoiseSignal + NOISE_MODULO/3) % NOISE_MODULO;
 }
 
-long MakeA3()
+long MakeA3(long x,long y,long z)
 {
   return (myNoiseSignal + 2*NOISE_MODULO/3) % NOISE_MODULO;
 }
@@ -132,6 +145,7 @@ string fnc_MakeActivityName(int vActivity)
        case ACTIVITY_Y        :return "Y Travel";break;
        case ACTIVITY_Z        :return "Z travel";break;
        case ACTIVITY_HOMING   :return "Homing";break;
+       case ACTIVITY_CIRCLE   :return "Circle";break;
        default:return "Undefined";break;
       }
 }
@@ -149,7 +163,7 @@ void fnc_Activity_Inbound(int vActivity)
 
 task INPUT()  {
   int i,myTravelControl;
-  bool myLastButton[3];
+  bool myLastButton[3],myButtonPressed[3];
   string s;
   while(true) {
     myNoiseSignal=(myNoiseSignal + NOISE_STEP) % NOISE_MODULO;
@@ -167,6 +181,7 @@ task INPUT()  {
     myLeftButton=ButtonPressed(BTNLEFT, false);
     myCenterButton=ButtonPressed(BTNCENTER, false);
 
+    /*
     if (mySetpointChangeOverActive )
     {
       if (myRightButton && !myLastButton[BTNRIGHT]) {myTravelControl=RESOLUTION_MOTION_SINGLE;}
@@ -175,7 +190,7 @@ task INPUT()  {
     else
     {
       myTravelControl=0;
-    }
+    }*/
 
 
 
@@ -187,9 +202,9 @@ task INPUT()  {
       }
 
 
-    myAxisSP[MOTOR_A1]=MakeA1();
-    myAxisSP[MOTOR_A2]=MakeA2();
-    myAxisSP[MOTOR_A3]=MakeA3();
+    myAxisSP[MOTOR_A1]=MakeA1(myX,myY,myZ);
+    myAxisSP[MOTOR_A2]=MakeA2(myX,myY,myZ);
+    myAxisSP[MOTOR_A3]=MakeA3(myX,myY,myZ);
 
 
     myLastButton[BTNRIGHT]  =myRightButton;

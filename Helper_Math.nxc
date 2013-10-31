@@ -1,0 +1,74 @@
+#define MAX_DEG 360
+#define CIRCLE_RADIUS 200
+
+float xM,yM,MT1,MT2,MT3;
+long testlong,zM,L,R;
+int myDegrees;
+
+float MakeA1(float x,float y,float z)
+{
+  float result=pow((((sqrt(3)*L)/3)-x),2)+pow(y,2);
+  result=sqrt(pow(R,2)-result);
+  return result+z;
+  //return trunc(result+z);
+}
+
+float MakeA2(float x,float y,float z)
+{
+  float result=pow((-((sqrt(3)*L)/6)+x),2)+pow(L/2+y,2);
+  result=sqrt(pow(R,2)-result);
+  return result+z;
+  //return trunc(result+z);
+}
+
+float MakeA3(float x,float y,float z)
+{
+  float result=pow((((sqrt(3)*L)/6)-x),2)+pow(L/2-y,2);
+  result=sqrt(pow(R,2)-result);
+  return result+z;
+  //return trunc(result+z);
+}
+
+inline int integer(float x)
+{
+   return trunc(x + 0.5);
+}
+
+task main() {
+string s;
+L=1200;
+R=1000;
+
+myDegrees=85;
+
+ClearScreen();
+while(true)
+{
+//ClearScreen();
+Wait(MS_250);
+myDegrees=(myDegrees+1)%MAX_DEG;
+
+float x = CIRCLE_RADIUS * cosd(myDegrees);
+float y = CIRCLE_RADIUS * sind(myDegrees);
+zM=-400;
+//xM=trunc(x);yM=trunc(y);
+xM=x;yM=y;
+//zM=(zM+5)%50;
+//TextOut(0,  LCD_LINE1, FormatNum("%7.6f", testfloat));
+s=FormatNum("L:%4d",L);s=strcat(s,FormatNum("| R:%4d",R));TextOut(0,  LCD_LINE1, s);
+s=FormatNum("Degrees:%4d",myDegrees);TextOut(0,  LCD_LINE2, s);
+s=FormatNum("Radius:%4d",CIRCLE_RADIUS);TextOut(0,  LCD_LINE3, s);
+int result=trunc(x);s=FormatNum("X%3d",result);
+result=trunc(yM);s=strcat(s,FormatNum("|Y%3d",result));
+result=trunc(zM);s=strcat(s,FormatNum("|Z%3d",result));
+
+TextOut(0,  LCD_LINE4, s);
+
+TextOut(0,  LCD_LINE5, FormatNum("A1:%4.1f",MakeA1(xM,yM,zM)));
+TextOut(0,  LCD_LINE6, FormatNum("A2:%4.1f",MakeA2(xM,yM,zM)));
+TextOut(0,  LCD_LINE7, FormatNum("A3:%4.1f",MakeA3(xM,yM,zM)));
+
+//TextOut(0,  LCD_LINE7, FormatNum("X:%4f",x));
+
+}
+}
