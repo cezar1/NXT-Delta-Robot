@@ -1,6 +1,9 @@
 /*
 Changelog
-release 008
+release 009
+
+20131105
+        +  (14:00)  Implemented circle activity with motion logic
 
 20131031
         +  (16:20)  Added circle activity
@@ -35,6 +38,7 @@ myActivity = 1 - X motion
            = 2 - Y motion
            = 3 - Z motion
            = 4 - Homing
+           = 5 - Circle
            
 HMI display
 ________________________
@@ -49,13 +53,13 @@ LINE6: A3:000000
 LINE7: Activity
 
 */
-#define SIMULATOR
+//#define SIMULATOR
 
-#define A_P 45
-#define A_I 45
-#define A_D 45
+#define A_P 200
+#define A_I 200
+#define A_D 200
 
-#define TRAVEL_AFTER_HOME 1000
+#define TRAVEL_AFTER_HOME 800
 #define APROACH_HOME_SPEED 50
 #define SPEED_AFTER_HOME 50
 #define INVERT_Y_DIR 0
@@ -77,8 +81,10 @@ LINE7: Activity
 #define CIRCLE_ACTIVITY_Small_R_MINUS   8
 #define CIRCLE_ACTIVITY_Deg_Inc_PLUS    9
 #define CIRCLE_ACTIVITY_Deg_Inc_MINUS   10
-#define CIRCLE_ACTIVITY_Exit            11
-#define CIRCLE_ACTIVITY_Max             12
+#define CIRCLE_ACTIVITY_H_PLUS          11
+#define CIRCLE_ACTIVITY_H_MINUS         12
+#define CIRCLE_ACTIVITY_Exit            13
+#define CIRCLE_ACTIVITY_Max             14
 
 #define MOTOR_A1 0
 #define MOTOR_A2 1
@@ -86,11 +92,6 @@ LINE7: Activity
 
 #define BOTTOM_LIMIT -1000
 #define TOP_LIMIT 1000
-
-#define DEFAULT_HOMING_HEIGHT 1600
-#define A1_HOMING_OFFSET 0
-#define A2_HOMING_OFFSET 0
-#define A3_HOMING_OFFSET 0
 
 #define RESOLUTION_MOTION_SINGLE 10
 
@@ -101,10 +102,10 @@ LINE7: Activity
 #define RIGHT_BUTTON 1
 #define CENTER_BUTTON 2
 
-int CIRCLE_L,CIRCLE_R,CIRCLE_GR,CIRCLE_TR,CIRCLE_DEG_INC;
+int CIRCLE_L,CIRCLE_R,CIRCLE_GR,CIRCLE_TR,CIRCLE_DEG_INC,myDegrees;
 
 int myActivity,mySubActivity;
-long myTachoCounts[3],myQ[3];
+long myTachoCounts[3];
 long myLastTachoCounts[3];
 int myActualMotorSpeed[3];
 long myAxisSP[3];
@@ -122,7 +123,7 @@ bool myMotionActive,myStartup,myActivityOn;
 void StartRegulatedPositioner() {
   SetMotorRegulationTime(MS_5);
   SetMotorRegulationOptions(OUT_REGOPTION_NO_SATURATION);
-  PosRegSetMax(OUT_ABC, 60, 50);
+  PosRegSetMax(OUT_ABC, 100, 80);
   PosRegEnable(OUT_ABC,A_P,A_I,A_D);
   ResetAllTachoCounts(OUT_ABC);
   myMotionActive=true;
@@ -132,35 +133,46 @@ void StopRegulatedPositioner() {
   CoastEx(OUT_ABC, RESET_NONE);
 }
 
-long MakeA1(long x,long y,long z)
+float MakeA1()
 {
-  return myNoiseSignal % NOISE_MODULO;
+  float fCIRCLE_L=CIRCLE_L;
+  float fmyX=myX;
+  float fmyY=myY;
+  float fCIRCLE_R=CIRCLE_R;
+  float result=pow((((sqrt(3)*fCIRCLE_L)/3)-fmyX),2)+pow(fmyY,2);
+  result=sqrt(pow(fCIRCLE_R,2)-result);
+  return result+myZ;
+
 }
 
-long MakeA2(long x,long y,long z)
+float MakeA2()
 {
-  return (myNoiseSignal + NOISE_MODULO/3) % NOISE_MODULO;
+  float result=pow((-((sqrt(3)*CIRCLE_L)/6)+myX),2)+pow(CIRCLE_L/2+myY,2);
+  result=sqrt(pow(CIRCLE_R,2)-result);
+  return result+myZ;
 }
 
-long MakeA3(long x,long y,long z)
+float MakeA3()
 {
-  return (myNoiseSignal + 2*NOISE_MODULO/3) % NOISE_MODULO;
+  float result=pow((((sqrt(3)*CIRCLE_L)/6)-myX),2)+pow(CIRCLE_L/2-myY,2);
+  result=sqrt(pow(CIRCLE_R,2)-result);
+  return result+myZ;
 }
 void InitCircleVar()
 {
-  CIRCLE_L=-999;
-  CIRCLE_R=200;
-  CIRCLE_TR=123;
-  CIRCLE_GR=432;
-  CIRCLE_DEG_INC=5;
-
+  CIRCLE_L=1200;
+  CIRCLE_R=1000;
+  CIRCLE_TR=450;
+  CIRCLE_GR=100;
+  CIRCLE_DEG_INC=1;
+  myZ=-400;
 }
 void MakeCircleScreen()
 {
 //Circle SubActivity
 //L +0000|R +0000
 //TR+0000|GR+0000
-//Deg+000
+//Deg+000|H +0000
 //X+000|Y+000|Z+000
 //Q+000|Q+000|Q+000
 //1+000|2+000|3+000
@@ -168,11 +180,11 @@ void MakeCircleScreen()
 string s;
 s="L ";s=strcat(s,FormatNum("%03d", CIRCLE_L));s=strcat(s,FormatNum("|R %03d",CIRCLE_R));TextOut(0, LCD_LINE2,s);
 s="TR";s=strcat(s,FormatNum("%03d", CIRCLE_TR));s=strcat(s,FormatNum("|GR%03d",CIRCLE_GR));TextOut(0, LCD_LINE3,s);
-s="Deg";s=strcat(s,FormatNum("%03d", CIRCLE_DEG_INC));TextOut(0, LCD_LINE4,s);
+s="Deg";s=strcat(s,FormatNum("%03d", CIRCLE_DEG_INC));s=strcat(s,FormatNum("|H%03d",myZ));s=strcat(s,FormatNum("|D%03d",myDegrees));TextOut(0, LCD_LINE4,s);
 s="X";s=strcat(s,FormatNum("%03d", myX));s=strcat(s,FormatNum("|Y%03d",myY));s=strcat(s,FormatNum("|Z%03d",myZ));TextOut(0, LCD_LINE5,s);
-s="Q";s=strcat(s,FormatNum("%03d", myQ[MOTOR_A1]));s=strcat(s,FormatNum("|Q%03d",myQ[MOTOR_A2]));s=strcat(s,FormatNum("|Q%03d",myQ[MOTOR_A3]));TextOut(0, LCD_LINE6,s);
+s="Q";s=strcat(s,FormatNum("%03d", myAxisSP[MOTOR_A1]));s=strcat(s,FormatNum("|Q%03d",myAxisSP[MOTOR_A2]));s=strcat(s,FormatNum("|Q%03d",myAxisSP[MOTOR_A3]));TextOut(0, LCD_LINE6,s);
 s="1";s=strcat(s,FormatNum("%03d", myTachoCounts[MOTOR_A1]));s=strcat(s,FormatNum("|2%03d",myTachoCounts[MOTOR_A2]));s=strcat(s,FormatNum("|3%03d",myTachoCounts[MOTOR_A3]));TextOut(0, LCD_LINE7,s);
-s="E";s=strcat(s,FormatNum("%03d", myQ[MOTOR_A1]-myTachoCounts[MOTOR_A1]));s=strcat(s,FormatNum("|E%03d",myQ[MOTOR_A2]-myTachoCounts[MOTOR_A2]));s=strcat(s,FormatNum("|E%03d",myQ[MOTOR_A3]-myTachoCounts[MOTOR_A3]));TextOut(0, LCD_LINE8,s);
+s="E";s=strcat(s,FormatNum("%03d", myAxisSP[MOTOR_A1]-myTachoCounts[MOTOR_A1]));s=strcat(s,FormatNum("|E%03d",myAxisSP[MOTOR_A2]-myTachoCounts[MOTOR_A2]));s=strcat(s,FormatNum("|E%03d",myAxisSP[MOTOR_A3]-myTachoCounts[MOTOR_A3]));TextOut(0, LCD_LINE8,s);
 }
 void MakeSubActivityScreen(int vActivity)
 {
@@ -205,6 +217,10 @@ string fnc_MakeCircleSubActivity(int vSubActivity)
        case CIRCLE_ACTIVITY_Small_R_MINUS :return "Grp R -";break;
        case CIRCLE_ACTIVITY_Deg_Inc_PLUS  :return "Deg +";break;
        case CIRCLE_ACTIVITY_Deg_Inc_MINUS :return "Deg -";break;
+       case CIRCLE_ACTIVITY_H_PLUS        :return "H +";break;
+       case CIRCLE_ACTIVITY_H_MINUS       :return "H -";break;
+
+
        case CIRCLE_ACTIVITY_Exit          :return "Exit";break;
 
 
@@ -249,17 +265,6 @@ task INPUT()  {
     myLeftButton=ButtonPressed(BTNLEFT, false);
     myCenterButton=ButtonPressed(BTNCENTER, false);
 
-    /*
-    if (mySetpointChangeOverActive )
-    {
-      if (myRightButton && !myLastButton[BTNRIGHT]) {myTravelControl=RESOLUTION_MOTION_SINGLE;}
-      if (myLeftButton && !myLastButton[BTNLEFT]) {myTravelControl=-RESOLUTION_MOTION_SINGLE;}
-    }
-    else
-    {
-      myTravelControl=0;
-    }*/
-
 
 
       switch(myActivity)
@@ -270,9 +275,7 @@ task INPUT()  {
       }
 
 
-    myAxisSP[MOTOR_A1]=MakeA1(myX,myY,myZ);
-    myAxisSP[MOTOR_A2]=MakeA2(myX,myY,myZ);
-    myAxisSP[MOTOR_A3]=MakeA3(myX,myY,myZ);
+
 
 
     myLastButton[BTNRIGHT]  =myRightButton;
@@ -374,6 +377,38 @@ task A3()  {
     }
     }
 }
+task SIGNAL()
+{
+  while (true)
+  {
+  if (myActivity==ACTIVITY_CIRCLE && myMotionActive && myActivityOn) myDegrees=(myDegrees+CIRCLE_DEG_INC) % 365;
+  Wait(50);
+  }
+}
+task MOTION()
+{ int trunctarget;
+  while (true)
+    {
+    if (myActivity==ACTIVITY_CIRCLE && myActivityOn)
+      {
+        float x = CIRCLE_TR * cosd(myDegrees);
+        float y = CIRCLE_TR * sind(myDegrees);
+        trunctarget=trunc(x);
+        myX=trunctarget;
+        trunctarget=trunc(y);
+        myY=trunctarget;
+        //myY=trunc(y);
+
+      }
+    if (myMotionActive)
+      {
+        myAxisSP[MOTOR_A1]=MakeA1();
+        myAxisSP[MOTOR_A2]=MakeA2();
+        myAxisSP[MOTOR_A3]=MakeA3();
+
+      }
+    }
+}
 void CircleLeftButton()
 {
   if(myActivityOn)
@@ -404,6 +439,8 @@ void CircleCenterButton()
       case CIRCLE_ACTIVITY_Small_R_MINUS :CIRCLE_GR-=1;break;
       case CIRCLE_ACTIVITY_Deg_Inc_PLUS  :CIRCLE_DEG_INC+=1;break;
       case CIRCLE_ACTIVITY_Deg_Inc_MINUS :CIRCLE_DEG_INC-=1;break;
+      case CIRCLE_ACTIVITY_H_PLUS        :myZ+=5;break;
+      case CIRCLE_ACTIVITY_H_MINUS       :myZ-=5;break;
       case CIRCLE_ACTIVITY_Exit          :myActivityOn=false;break;
 
       default:;break;
@@ -411,7 +448,7 @@ void CircleCenterButton()
      }
   else
     {
-    mySubActivity=CIRCLE_ACTIVITY_L_PLUS;
+    mySubActivity=CIRCLE_ACTIVITY_H_PLUS;
     myActivityOn=true;
     }
 }
@@ -468,6 +505,7 @@ task ACTIVITY() {
   {
     myStartup=false;
     PlayFileEx("Good.rso", 3, false);Wait(MS_500);
+    myMotionActive=true;
   }
 #else
   if (myReadyForOperation[MOTOR_A1] && myReadyForOperation[MOTOR_A2] && myReadyForOperation[MOTOR_A3] && myStartup)
@@ -480,16 +518,7 @@ task ACTIVITY() {
 #endif
   if (myLeftButton && !myLastLeftButton && !myStartup){LeftButton();}myLastLeftButton=myLeftButton;
   if (myRightButton && !myLastRightButton && !myStartup){RightButton();}myLastRightButton=myRightButton;
-
-
-
-  if (myCenterButton && !myLastCenterButton && !myStartup)
-  {
-    CenterButton();
-    //myLastCenterButton=true;
-    //myMotionActive=false;
-  }
-  myLastCenterButton=myCenterButton;
+  if (myCenterButton && !myLastCenterButton && !myStartup){CenterButton();}myLastCenterButton=myCenterButton;
   }
 }
 
@@ -563,8 +592,8 @@ task main() {
   init();
   //Task configuration
 #ifdef SIMULATOR
-  Precedes(INPUT,ACTIVITY,HMI);siminit();
+  Precedes(SIGNAL,MOTION,INPUT,ACTIVITY,HMI);siminit();
 #else
-  Precedes(INPUT,A1,A2,A3,ACTIVITY,HMI);
+  Precedes(SIGNAL,MOTION,INPUT,A1,A2,A3,ACTIVITY,HMI);
 #endif
 }
