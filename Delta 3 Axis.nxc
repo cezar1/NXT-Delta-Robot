@@ -1,6 +1,9 @@
 /*
 Changelog
-release 009
+release 010
+
+20131106
+        +  (14:26)  Added TOWER_HEIGHT constant
 
 20131105
         +  (14:00)  Implemented circle activity with motion logic
@@ -55,9 +58,11 @@ LINE7: Activity
 */
 //#define SIMULATOR
 
-#define A_P 200
-#define A_I 200
-#define A_D 200
+#define TOWER_HEIGHT 1000
+
+#define A_P 125
+#define A_I 125
+#define A_D 70
 
 #define TRAVEL_AFTER_HOME 800
 #define APROACH_HOME_SPEED 50
@@ -85,6 +90,8 @@ LINE7: Activity
 #define CIRCLE_ACTIVITY_H_MINUS         12
 #define CIRCLE_ACTIVITY_Exit            13
 #define CIRCLE_ACTIVITY_Max             14
+
+#define CIRCLE_PARAM_INC                10
 
 #define MOTOR_A1 0
 #define MOTOR_A2 1
@@ -121,7 +128,7 @@ bool myTouchInput[3],myReadyForOperation[3],myLeftButton,myRightButton,myCenterB
 bool myMotionActive,myStartup,myActivityOn;
 
 void StartRegulatedPositioner() {
-  SetMotorRegulationTime(MS_5);
+  SetMotorRegulationTime(50);
   SetMotorRegulationOptions(OUT_REGOPTION_NO_SATURATION);
   PosRegSetMax(OUT_ABC, 100, 80);
   PosRegEnable(OUT_ABC,A_P,A_I,A_D);
@@ -147,25 +154,33 @@ float MakeA1()
 
 float MakeA2()
 {
-  float result=pow((-((sqrt(3)*CIRCLE_L)/6)+myX),2)+pow(CIRCLE_L/2+myY,2);
-  result=sqrt(pow(CIRCLE_R,2)-result);
+  float fCIRCLE_L=CIRCLE_L;
+  float fmyX=myX;
+  float fmyY=myY;
+  float fCIRCLE_R=CIRCLE_R;
+  float result=pow((-((sqrt(3)*fCIRCLE_L)/6)+fmyX),2)+pow(fCIRCLE_L/2+fmyY,2);
+  result=sqrt(pow(fCIRCLE_R,2)-result);
   return result+myZ;
 }
 
 float MakeA3()
 {
-  float result=pow((((sqrt(3)*CIRCLE_L)/6)-myX),2)+pow(CIRCLE_L/2-myY,2);
-  result=sqrt(pow(CIRCLE_R,2)-result);
+  float fCIRCLE_L=CIRCLE_L;
+  float fmyX=myX;
+  float fmyY=myY;
+  float fCIRCLE_R=CIRCLE_R;
+  float result=pow((((sqrt(3)*fCIRCLE_L)/6)-fmyX),2)+pow(fCIRCLE_L/2-fmyY,2);
+  result=sqrt(pow(fCIRCLE_R,2)-result);
   return result+myZ;
 }
 void InitCircleVar()
 {
-  CIRCLE_L=1200;
-  CIRCLE_R=1000;
-  CIRCLE_TR=450;
+  CIRCLE_L=3000;
+  CIRCLE_R=1500;
+  CIRCLE_TR=100;
   CIRCLE_GR=100;
-  CIRCLE_DEG_INC=1;
-  myZ=-400;
+  CIRCLE_DEG_INC=3;
+  myZ=0;
 }
 void MakeCircleScreen()
 {
@@ -382,7 +397,7 @@ task SIGNAL()
   while (true)
   {
   if (myActivity==ACTIVITY_CIRCLE && myMotionActive && myActivityOn) myDegrees=(myDegrees+CIRCLE_DEG_INC) % 365;
-  Wait(50);
+  Wait(250);
   }
 }
 task MOTION()
@@ -402,9 +417,9 @@ task MOTION()
       }
     if (myMotionActive)
       {
-        myAxisSP[MOTOR_A1]=MakeA1();
-        myAxisSP[MOTOR_A2]=MakeA2();
-        myAxisSP[MOTOR_A3]=MakeA3();
+        myAxisSP[MOTOR_A1]=TOWER_HEIGHT-MakeA1();
+        myAxisSP[MOTOR_A2]=TOWER_HEIGHT-MakeA2();
+        myAxisSP[MOTOR_A3]=TOWER_HEIGHT-MakeA3();
 
       }
     }
@@ -429,18 +444,18 @@ void CircleCenterButton()
     {
     switch(mySubActivity)
       {
-      case CIRCLE_ACTIVITY_L_PLUS        :CIRCLE_L+=1;break;
-      case CIRCLE_ACTIVITY_L_MINUS       :CIRCLE_L-=1;break;
-      case CIRCLE_ACTIVITY_R_PLUS        :CIRCLE_R+=1;break;
-      case CIRCLE_ACTIVITY_R_MINUS       :CIRCLE_R-=1;break;
-      case CIRCLE_ACTIVITY_Radius_PLUS   :CIRCLE_TR+=1;break;
-      case CIRCLE_ACTIVITY_Radius_MINUS  :CIRCLE_TR-=1;break;
-      case CIRCLE_ACTIVITY_Small_R_PLUS  :CIRCLE_GR+=1;break;
-      case CIRCLE_ACTIVITY_Small_R_MINUS :CIRCLE_GR-=1;break;
-      case CIRCLE_ACTIVITY_Deg_Inc_PLUS  :CIRCLE_DEG_INC+=1;break;
-      case CIRCLE_ACTIVITY_Deg_Inc_MINUS :CIRCLE_DEG_INC-=1;break;
-      case CIRCLE_ACTIVITY_H_PLUS        :myZ+=5;break;
-      case CIRCLE_ACTIVITY_H_MINUS       :myZ-=5;break;
+      case CIRCLE_ACTIVITY_L_PLUS        :CIRCLE_L+=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_L_MINUS       :CIRCLE_L-=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_R_PLUS        :CIRCLE_R+=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_R_MINUS       :CIRCLE_R-=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_Radius_PLUS   :CIRCLE_TR+=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_Radius_MINUS  :CIRCLE_TR-=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_Small_R_PLUS  :CIRCLE_GR+=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_Small_R_MINUS :CIRCLE_GR-=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_Deg_Inc_PLUS  :CIRCLE_DEG_INC+=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_Deg_Inc_MINUS :CIRCLE_DEG_INC-=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_H_PLUS        :myZ+=CIRCLE_PARAM_INC;break;
+      case CIRCLE_ACTIVITY_H_MINUS       :myZ-=CIRCLE_PARAM_INC;break;
       case CIRCLE_ACTIVITY_Exit          :myActivityOn=false;break;
 
       default:;break;
@@ -514,6 +529,7 @@ task ACTIVITY() {
     if (INVERT_Y_DIR) {RotateMotorPID(OUT_ABC, SPEED_AFTER_HOME, -TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
     else {RotateMotorPID(OUT_ABC, SPEED_AFTER_HOME, TRAVEL_AFTER_HOME,A_P,A_I,A_D);}
     StartRegulatedPositioner();PlayFileEx("Good.rso", 3, false);Wait(MS_500);
+    myActivityOn=true;
   }
 #endif
   if (myLeftButton && !myLastLeftButton && !myStartup){LeftButton();}myLastLeftButton=myLeftButton;
