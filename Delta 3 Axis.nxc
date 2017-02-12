@@ -42,6 +42,7 @@ myActivity = 1 - X motion
            = 3 - Z motion
            = 4 - Homing
            = 5 - Circle
+           = 6 - Free movement
            
 HMI display
 ________________________
@@ -74,7 +75,9 @@ LINE7: Activity
 #define ACTIVITY_Z 3
 #define ACTIVITY_HOMING 4
 #define ACTIVITY_CIRCLE 5
-#define ACTIVITY_MAX 6
+#define ACTIVITY_FREE 6
+#define ACTIVITY_MAX 7
+
 
 #define CIRCLE_ACTIVITY_L_PLUS          1
 #define CIRCLE_ACTIVITY_L_MINUS         2
@@ -216,6 +219,7 @@ string fnc_MakeActivityName(int vActivity)
        case ACTIVITY_Z        :return "Z travel";break;
        case ACTIVITY_HOMING   :return "Homing";break;
        case ACTIVITY_CIRCLE   :return "Circle";break;
+       case ACTIVITY_FREE     :return "Free";break;
        default:return "Undefined";break;
       }
 }
@@ -586,16 +590,16 @@ LINE7: Activity
 
 void init() {
 
-  myActivity=ACTIVITY_CIRCLE;
+  myActivity=ACTIVITY_FREE;
   SetSensorTouch(IN_1);
   SetSensorTouch(IN_2);
   SetSensorTouch(IN_3);
   //StartRegulatedPositioner();
   myStartup=true;
   
-  //CIRCLE
-  mySubActivity=CIRCLE_ACTIVITY_L_PLUS;
-  InitCircleVar();
+  ////CIRCLE
+  //mySubActivity=CIRCLE_ACTIVITY_L_PLUS;
+  //InitCircleVar();
 }
 
 void siminit(){
